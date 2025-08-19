@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Consulta de Registros</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  input, select, button { padding: 5px; margin: 5px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 5px; text-align: left; }
+  th { background-color: #eee; }
+</style>
+</head>
+<body>
+
+<h1>🔎 Consulta de Registros</h1>
+
+<!-- Filtros -->
+<label>Nome:</label>
+<input type="text" id="filterName" placeholder="Digite o nome">
+
+<label>CPF:</label>
+<input type="text" id="filterCpf" placeholder="Digite o CPF">
+
+<label>Planilha:</label>
+<select id="filterSheet"></select>
+
+<button onclick="applyFilter()">Pesquisar</button>
+
+<!-- Tabela de resultados -->
+<div id="results"></div>
+
+<script>
+// Variáveis globais
+let jsonData = {};
+
+// Carregar JSON
+fetch("resultado_final.json")
+  .then(res => res.json())
+  .then(data => {
+    jsonData = data;
+    const sheetSelect = document.getElementById("filterSheet");
+    Object.keys(data).forEach(sheet => {
+      const option = document.createElement("option");
+      option.value = sheet;
+      option.text = sheet;
+      sheetSelect.appendChild(option);
+    });
+  });
+
+// Função para normalizar strings (ignora maiúsculas e acentos)
+function normalizeText(text) {
+  return text ? text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+}
+
+// Aplicar filtros e gerar tabela
+function applyFilter() {
+  const sheetName = document.getElementById("filterSheet").value;
+  const nameFilter = normalizeText(document.getElementById("filterName").value);
+  const cpfFilter = document.getElementById("filterCpf").value.trim();
+
+  const sheetData = jsonData[sheetName] || [];
+  const filtered = sheetData.filter(row => {
+    const rowText = normalizeText(Object.values(row).join(" "));
+    const matchName = nameFilter ? rowText.includes(nameFilter) : true;
+    const matchCpf = cpfFilter ? Object.values(row).join(" ").includes(cpfFilter) : true;
+    return matchName && matchCpf;
+  });
+
+  // Gerar tabela HTML
+  const resultsDiv = document.getElementById("results");
+  if(filtered.length === 0) {
+    resultsDiv.innerHTML = "<p>Nenhum resultado encontrado.</p>";
+    return;
+  }
+
+  let table = "<table><thead><tr>";
+  Object.keys(filtered[0]).forEach(col => table += `<th>${col}</th>`);
+  table += "</tr></thead><tbody>";
+  filtered.forEach(row => {
+    table += "<tr>";
+    Object.values(row).forEach(val => table += `<td>${val}</td>`);
+    table += "</tr>";
+  });
+  table += "</tbody></table>";
+  resultsDiv.innerHTML = table;
+}
+</script>
+
+</body>
+</html>
