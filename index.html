@@ -54,6 +54,9 @@
     font-weight: bold;
   }
 </style>
+<!-- Bibliotecas para Excel e PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -70,6 +73,8 @@
 <select id="filterSheet"></select>
 
 <button onclick="applyFilter()">Pesquisar</button>
+<button onclick="exportToExcel()">Gerar Excel</button>
+<button onclick="exportToPDF()">Gerar PDF</button>
 
 <p id="nameError"></p>
 
@@ -80,6 +85,7 @@
 // Variáveis globais
 let jsonData = {};
 let validNames = [];
+let currentFilteredData = [];
 
 // Carregar JSON
 fetch("resultado_final.json")
@@ -104,7 +110,7 @@ fetch("resultado_final.json")
     validNames = [...new Set(validNames)]; // remover duplicados
   });
 
-// Função para normalizar strings
+// Normalizar strings
 function normalizeText(text) {
   return text ? text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
 }
@@ -123,7 +129,6 @@ function applyFilter() {
   const nameError = document.getElementById("nameError");
   nameError.textContent = "";
 
-  // Verificar se o nome está correto
   if(nameFilter && !validNames.some(name => normalizeText(name) === nameFilter)) {
     const suggestions = findSimilarNames(nameFilter);
     nameError.textContent = "Nome incorreto ou não cadastrado." +
@@ -138,7 +143,8 @@ function applyFilter() {
     return matchName && matchCpf;
   });
 
-  // Gerar tabela HTML editável
+  currentFilteredData = filtered; // guardar para exportação
+
   const resultsDiv = document.getElementById("results");
   if(filtered.length === 0) {
     resultsDiv.innerHTML = "<p>Nenhum resultado encontrado.</p>";
@@ -163,7 +169,6 @@ function applyFilter() {
 function updateCell(sheetName, rowIndex, key, newValue) {
   jsonData[sheetName][rowIndex][key] = newValue;
 
-  // Se for nome, atualiza lista de nomes válidos
   if(key === "Nome") {
     validNames = [];
     Object.values(jsonData).forEach(sheet => {
@@ -174,7 +179,39 @@ function updateCell(sheetName, rowIndex, key, newValue) {
     validNames = [...new Set(validNames)];
   }
 }
+
+// Exportar Excel
+function exportToExcel() {
+  if(currentFilteredData.length === 0) {
+    alert("Nenhum dado para exportar.");
+    return;
+  }
+  const worksheet = XLSX.utils.json_to_sheet(currentFilteredData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Resultados");
+  XLSX.writeFile(workbook, "consulta_registros.xlsx");
+}
+
+// Exportar PDF
+function exportToPDF() {
+  if(currentFilteredData.length === 0) {
+    alert("Nenhum dado para exportar.");
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const columns = Object.keys(currentFilteredData[0]);
+  const rows = currentFilteredData.map(row => columns.map(col => row[col]));
+  doc.autoTable({
+    head: [columns],
+    body: rows,
+  });
+  doc.save("consulta_registros.pdf");
+}
 </script>
+
+<!-- jsPDF AutoTable -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
 </body>
 </html>
