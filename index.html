@@ -4,11 +4,55 @@
 <meta charset="UTF-8">
 <title>Consulta de Registros</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  input, select, button { padding: 5px; margin: 5px; }
-  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-  th, td { border: 1px solid #ccc; padding: 5px; text-align: left; }
-  th { background-color: #eee; }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #dff5e0;
+    color: #333;
+  }
+  h1 {
+    text-align: center;
+    color: #2e7d32;
+  }
+  label {
+    font-weight: bold;
+  }
+  input, select, button {
+    padding: 8px;
+    margin: 5px;
+    border-radius: 5px;
+    border: 1px solid #aaa;
+  }
+  button {
+    background-color: #2e7d32;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #1b5e20;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: left;
+  }
+  th {
+    background-color: #a5d6a7;
+  }
+  tr:hover {
+    background-color: #c8e6c9;
+  }
+  #nameError {
+    color: red;
+    font-weight: bold;
+  }
 </style>
 </head>
 <body>
@@ -27,12 +71,15 @@
 
 <button onclick="applyFilter()">Pesquisar</button>
 
+<p id="nameError"></p>
+
 <!-- Tabela de resultados -->
 <div id="results"></div>
 
 <script>
 // Variáveis globais
 let jsonData = {};
+let validNames = [];
 
 // Carregar JSON
 fetch("resultado_final.json")
@@ -46,11 +93,26 @@ fetch("resultado_final.json")
       option.text = sheet;
       sheetSelect.appendChild(option);
     });
+
+    // Popular lista de nomes válidos a partir do JSON
+    validNames = [];
+    Object.values(data).forEach(sheet => {
+      sheet.forEach(row => {
+        if(row.Nome) validNames.push(row.Nome);
+      });
+    });
+    validNames = [...new Set(validNames)]; // remover duplicados
   });
 
-// Função para normalizar strings (ignora maiúsculas e acentos)
+// Função para normalizar strings
 function normalizeText(text) {
   return text ? text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+}
+
+// Encontrar nomes similares
+function findSimilarNames(input) {
+  const normalizedInput = normalizeText(input);
+  return validNames.filter(name => normalizeText(name).includes(normalizedInput));
 }
 
 // Aplicar filtros e gerar tabela
@@ -58,6 +120,15 @@ function applyFilter() {
   const sheetName = document.getElementById("filterSheet").value;
   const nameFilter = normalizeText(document.getElementById("filterName").value);
   const cpfFilter = document.getElementById("filterCpf").value.trim();
+  const nameError = document.getElementById("nameError");
+  nameError.textContent = "";
+
+  // Verificar se o nome está correto
+  if(nameFilter && !validNames.some(name => normalizeText(name) === nameFilter)) {
+    const suggestions = findSimilarNames(nameFilter);
+    nameError.textContent = "Nome incorreto ou não cadastrado." +
+      (suggestions.length > 0 ? " Sugestões: " + suggestions.join(", ") : "");
+  }
 
   const sheetData = jsonData[sheetName] || [];
   const filtered = sheetData.filter(row => {
@@ -67,7 +138,7 @@ function applyFilter() {
     return matchName && matchCpf;
   });
 
-  // Gerar tabela HTML
+  // Gerar tabela HTML editável
   const resultsDiv = document.getElementById("results");
   if(filtered.length === 0) {
     resultsDiv.innerHTML = "<p>Nenhum resultado encontrado.</p>";
@@ -77,13 +148,31 @@ function applyFilter() {
   let table = "<table><thead><tr>";
   Object.keys(filtered[0]).forEach(col => table += `<th>${col}</th>`);
   table += "</tr></thead><tbody>";
-  filtered.forEach(row => {
+  filtered.forEach((row, rowIndex) => {
     table += "<tr>";
-    Object.values(row).forEach(val => table += `<td>${val}</td>`);
+    Object.entries(row).forEach(([key, val], colIndex) => {
+      table += `<td contenteditable="true" onblur="updateCell('${sheetName}', ${rowIndex}, '${key}', this.textContent)">${val}</td>`;
+    });
     table += "</tr>";
   });
   table += "</tbody></table>";
   resultsDiv.innerHTML = table;
+}
+
+// Atualizar valor editado na tabela
+function updateCell(sheetName, rowIndex, key, newValue) {
+  jsonData[sheetName][rowIndex][key] = newValue;
+
+  // Se for nome, atualiza lista de nomes válidos
+  if(key === "Nome") {
+    validNames = [];
+    Object.values(jsonData).forEach(sheet => {
+      sheet.forEach(row => {
+        if(row.Nome) validNames.push(row.Nome);
+      });
+    });
+    validNames = [...new Set(validNames)];
+  }
 }
 </script>
 
